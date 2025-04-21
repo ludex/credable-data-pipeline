@@ -8,3 +8,33 @@ services:
     volumes:
       - ./sftp-uploads:/home/user/upload
     command: user:password:1001
+    restart: unless-stopped
+    networks:
+      - credable-net
+
+  redis:
+    image: redis
+    container_name: redis-server
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - credable-net
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: api-server
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    environment:
+      - RATE_LIMIT_REDIS_URL=redis://redis:6379/0
+    restart: unless-stopped
+    networks:
+      - credable-net
+
+networks:
+  credable-net:

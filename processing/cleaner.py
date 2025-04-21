@@ -29,15 +29,15 @@ def clean_and_save():
                 # Drop unnamed or empty columns
                 df = df.select([c for c in df.columns if not c.lower().startswith("unnamed")])
 
-                # Normalize column names
+                # Normalize column names to snake_case
                 for old_name in df.columns:
-                    new_name = old_name.strip().lower().replace(' ', '-').replace('_', '-')
+                    new_name = old_name.strip().lower().replace(' ', '_').replace('-', '_')
                     df = df.withColumnRenamed(old_name, new_name)
 
                 # Validate schema if defined
                 required_cols = expected_schemas.get(filename)
-                normalized_columns = {col.strip().lower().replace(' ', '-').replace('_', '-') for col in df.columns}
-                normalized_required = {col.strip().lower().replace(' ', '-').replace('_', '-') for col in required_cols}
+                normalized_columns = {col.strip().lower().replace(' ', '_').replace('-', '_') for col in df.columns}
+                normalized_required = {col.strip().lower().replace(' ', '_').replace('-', '_') for col in required_cols}
                 if required_cols and not normalized_required.issubset(normalized_columns):
                     print(f"⚠️ Skipping {filename} — missing expected columns")
                     continue
@@ -50,19 +50,25 @@ def clean_and_save():
                     df = df.withColumn("description", initcap(col("description")))
 
                 elif filename == "FINDEXData.csv":
-                    id_cols = ["country-name", "country-code", "indicator-name", "indicator-code"]
+                    id_cols = ["country_name", "country_code", "indicator_name", "indicator_code"]
                     year_cols = [c for c in df.columns if c.isdigit()]
-                    df = df.select(id_cols + year_cols)
+                    
+                    # Wrap all column names with backticks
+                    id_cols_quoted = [f"`{col}`" for col in id_cols]
+                    exprs = [f"`{y}` as `{y}`" for y in year_cols]
+
+                    df = df.selectExpr(*id_cols_quoted, *exprs)
                     df = df.na.drop(subset=year_cols)
-                    df = df.selectExpr(*id_cols, *[f"`{y}` as `{y}`" for y in year_cols])
+
+                    stack_expr = ", ".join([f"'{y}', `{y}`" for y in year_cols])
                     df = df.selectExpr(
-                        "country-name", "country-code", "indicator-name", "indicator-code",
-                        "stack(3, '2011', `2011`, '2014', `2014`, '2017', `2017`) as (year, value)"
+                        *id_cols_quoted,
+                        f"stack({len(year_cols)}, {stack_expr}) as (year, value)"
                     )
 
                 elif filename == "FINDEXSeries.csv":
                     df = df.fillna("N/A")
-                    df = df.dropna(subset=["series-code", "indicator-name"])
+                    df = df.dropna(subset=["series_code", "indicator_name"])
 
                 elif filename == "FINDEXFootNote.csv":
                     df = df.dropna(subset=["seriescode"])
@@ -70,7 +76,7 @@ def clean_and_save():
                     df = df.withColumn("description", initcap(col("description")))
 
                 elif filename == "FINDEXCountry.csv":
-                    df = df.dropna(subset=["country-code", "region"])
+                    df = df.dropna(subset=["country_code", "region"])
                     df = df.fillna("N/A")
 
                 # Fill general nulls
