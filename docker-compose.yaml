@@ -1,0 +1,10 @@
+services:
+  sftp:
+    image: atmoz/sftp
+    platform: linux/amd64
+    container_name: sftp-server
+    ports:
+      - "2222:22"
+    volumes:
+      - ./sftp-uploads:/home/user/upload
+    command: user:password:1001
